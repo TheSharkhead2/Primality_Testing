@@ -143,5 +143,69 @@ random number range → maximum time (ns), average time (ns)
 100000000, 1000000000 → 13934.9 ns, 614.7 ns
 ```
 
-That is so much faster than the previous algorithms. This makes sense, of course, as instead of running in O(n/2) time we are running in O(√n/3) time... Which is much faster. So fast I even waited in 2 seconds for numbers on the magnitude of 1000000000, which took longer than a minute and I gave up on for previous algorithms. 
+That is so much faster than the previous algorithms. This makes sense, of course, as instead of running in O(n/2) time we are running in O(√n/3) time... Which is much faster. So fast I even waited in 2 seconds for numbers on the magnitude of 1000000000, which took longer than a minute and I gave up on for previous algorithms. We can see that this does actually run in O(√n) time by doing a quick, messy graph in Desmos: 
 
+![GRAPH](assets/IsPrimeRunTime.png)
+
+It is what Wikipedia says! What a surprise. 
+
+So, overall, this is a massive improvement over the incredibly naive initial implementation. But we can do better, we get into some even faster algorithms to compute primes (even if they might not always be entirely accurate). 
+
+## The Fermat Test
+
+By Fermat's Theorem (I used sources [here](https://crypto.stanford.edu/pbc/notes/numbertheory/millerrabin.html) and [here](https://en.wikipedia.org/wiki/Fermat_primality_test#:~:text=If%20one%20wants%20to%20test,a%20if%20p%20is%20composite.) for this section), we must have the following be true for all primes (for n being the prime and for any a): 
+``` 
+a^(n-1) = 1 (mod n)
+```
+(Excuse the non-Latex math) So why not use this as a primality test? It would be constant time! Well, this isn't quite how that works. The key being that this must be *true* for all primes, but it isn't an if and only if, it is just an if prime → this true. For example, the number 561, will always pass this equality and break our algorithm. These numbers that fail this equality are called Carmichael numbers and there are an infinite number of them. Luckily, they have lower prevalence than prime numbers, so it isn't a massive concern, but it does mean that this isn't the most reliable algorithm. 
+
+With the concerns out of the way, how might we create an algorithm for this? Well, we can pretty simply pick a group of random numbers in the range [2, n-2] and test the equality for those numbers. If it fails at all, we just return "not prime." If it succeeds at our random sampling of numbers, we just return "probably prime." But enough words, let's implement this:
+
+We start like any other implementation, testing if n ≤ 3 and if n is even. I am not entirely sure if this is required (well the n ≤ 3 is), I just figure testing if it is even is really simple and could save some time. In other words: why not? Anyway, we start with: 
+```julia 
+function fermat_prime(n::Int, k::Int)
+    if n ≤ 3 
+        return n > 1 
+    elseif n % 2 == 0 
+        return false 
+    end # if
+end # function fermat_prime
+```
+
+From here, we simply grab k numbers to test with: 
+```julia
+function fermat_prime(n::Int, k::Int)
+    if n ≤ 3 
+        return n > 1
+    elseif n % 2 == 0 
+        return false 
+    end # if
+
+    testNumbers = sample(2:(n-2), k, replace=false) 
+end # function fermat_prime
+```
+
+And finially we compute the Fermat equality for each of these sampled numbers, if it doesn't work, we return not prime, otherwise we return prime (of course knowing it isn't for certain prime): 
+```julia 
+function fermat_prime(n::Int, k::Int)
+    if n ≤ 3 
+        return n > 1 
+    elseif n % 2 == 0 
+        return false 
+    end # if
+
+    testNumbers = sample(2:(n-2), k, replace=false) 
+
+    for i ∈ testNumbers
+        if i^(n-1) % n != 1 
+            return false
+        end # if
+    end # for
+
+    return true 
+end # function fermat_prime
+```
+
+According to [Wikipedia](https://en.wikipedia.org/wiki/Fermat_primality_test#:~:text=If%20one%20wants%20to%20test,a%20if%20p%20is%20composite.), this algorithm should run in O(k log²n log n log n) = O(k log²n) time. Where most of this running time comes from good algorithms for fast modular exponentiation. The k is what controls the "number of operations" in a sense which is theoretically just constant, so hence why really this is the running time of fast modular exponentiation. I am slightly worried that Julia has not implemented this, and I will therefore not find this running time, but I guess only testing will tell.
+
+For starters, it is probably a good idea to get a grasp on how accurate this algorithm is, so we pick a good k to get a good running time test. 
