@@ -12,6 +12,6 @@ export is_prime
 
 include("FermatAlgorithm.jl")
 
-export fermat_prime
+export fermat_prime, modular_exp
 
 end # module PrimalityTesting

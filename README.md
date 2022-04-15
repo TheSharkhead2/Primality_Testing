@@ -208,4 +208,113 @@ end # function fermat_prime
 
 According to [Wikipedia](https://en.wikipedia.org/wiki/Fermat_primality_test#:~:text=If%20one%20wants%20to%20test,a%20if%20p%20is%20composite.), this algorithm should run in O(k log²n log n log n) = O(k log²n) time. Where most of this running time comes from good algorithms for fast modular exponentiation. The k is what controls the "number of operations" in a sense which is theoretically just constant, so hence why really this is the running time of fast modular exponentiation. I am slightly worried that Julia has not implemented this, and I will therefore not find this running time, but I guess only testing will tell.
 
-For starters, it is probably a good idea to get a grasp on how accurate this algorithm is, so we pick a good k to get a good running time test. 
+And after the first round of testing, the algorithm had a 0% accuracy... That is weird, it should definitely be higher than that... Well, it found an integer overflow. Who would have know that 14^(21 - 1) = -6175693061724569600. This is personally news to me... 
+
+Anyways, I clearly needed to convert to BigInt, but instead of just doing that, I also decided to implement fast modular exponentiation as I knew this would probably be an issue if I just kicked it down the road. So I got to reading this [Wikipedia article](https://en.wikipedia.org/wiki/Modular_exponentiation), and began my implementation: 
+
+Essentially, we aim to find c in the following equation: 
+
+```
+c ≡ bᵉ (mod m)
+```
+
+The gist of the algorithm is that we can split e into binary and represent it like so: 
+``` 
+e = ∑ aᵢ2ⁱ  
+```
+
+If we then raise b to this number, it simplifies to: 
+``` 
+bᵉ = ∏ b^{aᵢ2ⁱ} 
+```
+
+(Apologies for the sketchy LaTeX) And from here, to find c, we simply need to take the modulus: 
+```
+c ≡ ∏ b^{aᵢ2ⁱ} (mod m)
+```
+
+We can use this fact, and particularly the fact that the 2ⁱ plays nicely with repeated squares, to construct an algorithm to perform modular exponentiation. We start by skipping all calculations that would involve a modulus of 1, because anything mod 1 is 0: 
+```julia
+function modular_exp(base::Int, exponent::Int, modulus::Int)
+    if modulus == 1 
+        return 0
+    end
+end # function modular_exp
+```
+
+But of course that is the boring part, we then initialize result to 1 (because we are finding a product) and we set base to its equivalence in mod modulus (the reason we can do this I will explain in a bit): 
+```julia
+function modular_exp(base::Int, exponent::Int, modulus::Int)
+    if modulus == 1 
+        return 0
+    end
+
+    result = 1 
+    base = base % modulus 
+    
+end # function modular_exp
+```
+
+Now we begin the loop. Essentially, we are just looping through all of the binary digits in our exponent, then computing the b^{aᵢ2ⁱ}, and then multiplying it to our result variable. To explain more, I think it is just best to show the code: 
+```julia
+function modular_exp(base::Int, exponent::Int, modulus::Int)
+    if modulus == 1 
+        return 0
+    end
+
+    result = 1 
+    base = base % modulus 
+    while exponent > 0 
+        if exponent % 2 == 1 
+            result = (result * base) % modulus 
+        end # if
+        exponent = exponent >> 1 
+        base = (base * base) % modulus 
+    end # while
+
+    result
+end # function modular_exp
+```
+So the main part that is actually moving our loop along (notice we are looping until the exponent is 0) is the following: 
+```julia
+exponent = exponent >> 1
+```
+This is a right binary shift by 1. For example, it would do the following: 
+```
+1011 → 101
+1101 → 110
+```
+Notice that if we apply this many times on the same exponent (until the number is 0): 
+```
+10111 → 1011
+1011 → 101
+101 → 10 
+10 → 1
+1 → 0
+```
+
+Each of the 2⁰ places (on each iteration) is all of the digits in the binary number. Essentially, if we had a good way of seeing if the 2⁰ place is 1 or 0, then we know whether or not we need to perform a calculation on that iteration. And the other interesting fact about this specific location in a binary number? If it is 1, the number is odd, if it is 0, the number is even. And we can pretty easily find that out using the following code: 
+```julia 
+if exponent % 2 == 1
+...
+```
+And what do we do when we are looking at a 1 in the binary number? Well we simply do a bit of multiplication (and can take the mod because we are doing modular exponentiation):
+```julia
+if exponent % 2 == 1 
+    result = (result * base) % modulus 
+end # if
+```
+So effectively we are just multiplying by this number base. But I thought that was the original base of the exponent? How is this performing the ```b^{aᵢ2ⁱ}``` we wanted? Well, whether or not we perform this multiplication, we set the base variable to its square: 
+```julia
+base = (base * base) % modulus 
+```
+Again we can take the mod because modular arithmetic says: 
+```
+(a ⋅ b) mod c = (a mod c) ⋅ (b mod c) mod c
+```
+(Which was probably important to mention earlier) And this sqauring takes care of the 2ⁱ in the exponent of b. Notice that after 3 iterations, the base variable is set to: ```(((b)²)²)² = b⁸ = b^{2³}```
+Which if you remember, we aim to multiply, if the third binary digit is 1, by ```b^{2³}```! The especially nice part of this is that we don't have to compute that exponent every iteration we need it. So instead of, say, 5 multiplications to compute 2⁵ on the 5th iteration plus a multiplication to the product and a few other necessary operations, we just compute, at most, 2 multiplications per loop: 1) if we need to increment the result, one multiplication there and 2) one multiplication to square the base variable. Much faster! 
+
+For normal exponentiation, say aᵇ, we have a running time of O(b) if we say multiplication is one operation. I found [online](https://math.stackexchange.com/questions/132487/what-is-the-runtime-of-a-modulus-operation) that the running time of the mod operator is O(log m log n) for m % n. But then there is [someone saying](https://stackoverflow.com/questions/14653596/what-is-the-big-o-running-time-of-a-mod-p-given-a-and-p-are-n-bit-numbers) that if you use a "good implementation" it is just O(1). I am going to assume Julia has a "good implementation" and just assume mod is constant time? Hopefully that doesn't matter. Anyways, therefore the running time of ```aᵇ mod m``` is O(b + 1) or just O(b). 
+
+However, for this fast exponentiation algorithm, we run a loop in log time and then perform 4-7 constant time (possibly) operations per loop. We can see this because we run the loop for every binary digit in e (remember for ```c ≡ bᵉ mod m```) and the number of binary digits is going to be log₂(*the highest power of 2 number that is still smaller than e*) which is essentially log₂(e) (worst case). This means, assuming mod, multiplication, and binary shift are constant time operations (which appears to only be sketchy for mod), then this algorithm runs in O(log e) time. That is a significant change from the naive exponentiation that performs in O(e) time (you can see why this is actually important for our purposes and why I seemingly completely forgot we were finding primes). Now we just need to add this to our fermat primality testing function and resume testing. 
