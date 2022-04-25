@@ -206,7 +206,7 @@ function fermat_prime(n::Int, k::Int)
 end # function fermat_prime
 ```
 
-According to [Wikipedia](https://en.wikipedia.org/wiki/Fermat_primality_test#:~:text=If%20one%20wants%20to%20test,a%20if%20p%20is%20composite.), this algorithm should run in O(k log²n log n log n) = O(k log²n) time. Where most of this running time comes from good algorithms for fast modular exponentiation. The k is what controls the "number of operations" in a sense which is theoretically just constant, so hence why really this is the running time of fast modular exponentiation. I am slightly worried that Julia has not implemented this, and I will therefore not find this running time, but I guess only testing will tell.
+According to [Wikipedia](https://en.wikipedia.org/wiki/Fermat_primality_test#:~:text=If%20one%20wants%20to%20test,a%20if%20p%20is%20composite.), this algorithm should run in O(k log²n log log n) = O(k log²n) time. Where most of this running time comes from good algorithms for fast modular exponentiation. The k is what controls the "number of operations" in a sense which is theoretically just constant, so hence why really this is the running time of fast modular exponentiation. I am slightly worried that Julia has not implemented this, and I will therefore not find this running time, but I guess only testing will tell.
 
 And after the first round of testing, the algorithm had a 0% accuracy... That is weird, it should definitely be higher than that... Well, it found an integer overflow. Who would have know that 14^(21 - 1) = -6175693061724569600. This is personally news to me... 
 
@@ -318,3 +318,106 @@ Which if you remember, we aim to multiply, if the third binary digit is 1, by ``
 For normal exponentiation, say aᵇ, we have a running time of O(b) if we say multiplication is one operation. I found [online](https://math.stackexchange.com/questions/132487/what-is-the-runtime-of-a-modulus-operation) that the running time of the mod operator is O(log m log n) for m % n. But then there is [someone saying](https://stackoverflow.com/questions/14653596/what-is-the-big-o-running-time-of-a-mod-p-given-a-and-p-are-n-bit-numbers) that if you use a "good implementation" it is just O(1). I am going to assume Julia has a "good implementation" and just assume mod is constant time? Hopefully that doesn't matter. Anyways, therefore the running time of ```aᵇ mod m``` is O(b + 1) or just O(b). 
 
 However, for this fast exponentiation algorithm, we run a loop in log time and then perform 4-7 constant time (possibly) operations per loop. We can see this because we run the loop for every binary digit in e (remember for ```c ≡ bᵉ mod m```) and the number of binary digits is going to be log₂(*the highest power of 2 number that is still smaller than e*) which is essentially log₂(e) (worst case). This means, assuming mod, multiplication, and binary shift are constant time operations (which appears to only be sketchy for mod), then this algorithm runs in O(log e) time. That is a significant change from the naive exponentiation that performs in O(e) time (you can see why this is actually important for our purposes and why I seemingly completely forgot we were finding primes). Now we just need to add this to our fermat primality testing function and resume testing. 
+
+As one more aside before actually testing my algorithm, we can quickly look at the Fermat primality test algorithm and analyze its run time (something I just mentioned I found on wikipedia earlier):
+```julia
+function fermat_prime(n::Int, k::Int)
+    if n ≤ 3 
+        return n > 1 
+    elseif n % 2 == 0 
+        return false 
+    end # if
+
+    testNumbers = sample(2:(n-2), k, replace=false) 
+
+    for i ∈ testNumbers
+        if modular_exp(i, n-1, n) != 1 
+            return false
+        end # if
+    end # for
+
+    return true 
+end # function fermat_prime
+```
+
+We start with a few constant time operations to just remove some easy pickings of non-prime numbers (as well as handle negative numbers). We can largely ignore this contribution to the running time. Follow this, we sample k random numbers. This is probably not constant time, but for the sake of this analysis, I am going to assume it is. Following this, we loop over the set of just sampled numbers, meaning we loop for k iterations. Inside the loop, we perform modular exponentiation once. This means, we would find a running time of O(k log n) because we run modular exponentiation k times, and modular exponentiation runs in O(log e) time, where e is the exponent, and we are taking n-1 as the exponent here. Though you will notice this isn't the same running time as Wikipedia gave me earlier. I am assuming this comes down to one of the following: 
+- They are including some kind of running time for sampling the random numbers 
+- They are assuming mod runs in O(log m log n) time. 
+
+I don't entirely want to jump down the rabbit hole of the random number sampling, but to humor the idea of mod being O(log m log n) time, I will breifly reexamine the modular exponentiation running time:
+
+Remember we are looping ```log e``` times for ```c ≡ bᵉ mod m```. However, each of those loops includes a mod operation (I am definitely still assuming mod 2 is constant time as I at least consistently saw that marketed as constant time), meaning an operation in O(log m log n) time for ```n mod m```. In this case, that would be in O(log b log m) time. Therefore, we can assume a running time of O(log e log b log m) time for the fast modular exponentiation. 
+
+Assuming this running time instead of the previous, we get the following running time for the Fermat primality testing: O(k log i log² n). And... at worst i=n, meaning this is O(k log³ n)... Which is worse than what Wikipedia said... So something is weird there. If we go back to before when I said the running time of the modular exponentiation is just O(log e), than you can see the running time of the Fermat Primality test is O(log² n), which agrees with Wikipedia. I would like to know what the actual running time of the mod operation is, as there seems to be a lot of different takes on this, and it makes my analysis very weird. 
+
+Sorry, one more sidestep, we need to test accuracy... So let's do that...
+
+Unsurprisingly, for primes between 10000 and 100000000, I measured an 100% accuracy in identifying prime numbers. Meaning I only tested prime numbers and it never said a prime number wasn't a prime number. Which is good. 
+
+I then tested all numbers, and after seeing all these cationary "Carmichael numbers break everything", I was expecting non-perfect results. However, the algorithm was perfectly correct (at least for k=10) in the range 10000-1000000000 when sampling 50000 numbers to test... I found this really weird. I ran it a bunch of times and only saw a misidentification once. So what's the big deal? Well, it turns out these numbers are... really uncommon. Here are all the Carmichael numbers below 100,000:
+```
+[561, 1105, 1729, 2465, 2821, 6601, 8911, 10585, 15841, 29341, 41041, 46657, 52633, 62745, 63973, 75361]
+```
+That isn't that many! According to this [source](https://primes.utm.edu/glossary/page.php?sort=CarmichaelNumber#:~:text=561%2C%201105%2C%201729%2C%202465,2%2C163%20are%20less%20than%2025%2C000%2C000%2C000.), there are actually only 2136 Carmichael numbers below 25,000,000,000 and 246,683 below 10,000,000,000,000,000! So with how I am just sampling a certain number of random numbers, it makes a lot of sense why I wouldn't find *that* many Carmichael numbers... However, upon testing the entirety of the list above, on k=10, about 10 times, I only saw it misidentify *one* number *once*. What is this?!?! Did I write my algorithm wrong and accidentally it is just better (or worse I am just somehow always creating a fake 100% accuracy)?! That seems incredibly unlikely.
+
+Well after a little bit of Googling, it turns out I was not the [only person](https://math.stackexchange.com/questions/1406533/fermat-primality-test-gcd-condition-and-carmichael-numbers) to misunderstand Carmichael numbers. So yes, Carmichael numbers are quite likely to fail this primality test, but not definitively. However, it only fails when a (remember the theorem is for a prime number n, we have ```aⁿ⁻¹ = 1 (mod n)```) is coprime to n, so you can totally still find values for Carmichael numbers that demonstrate they aren't prime. But if I was able to do this without many numbers sampled, why are they even an issue? Well, it has to do with when you get to massive numbers. There could be very few prime factors of a 100-digit prime and therefore be really difficult to stumble across a number which demonstrates a Carmichael number that massive to actually not be a prime. So that was really interesting, and quite unexpected when looking at accuracy of this algorithm. 
+
+I tested a stupid large range of 1000000000000-1000000000000000, sampling 100000 numbers, and got an accuracy of 0.97069. Which is pretty good. Though 3% is also not amazing? Note that this was with a k=100. Testing with k=10000 it for some reason went down: 0.96874... Hmmm... Again, this makes sense though. Given that Carmichael numbers, as I said earlier, are just sometimes super hard to get the right a to show they aren't prime, it is probably really difficult to get enough numbers inorder to increase the accuracy. I especially think that these values for k are just completely useless on these massive numbers I am testing. Overall, this just demonstrates that we need a much better primality test, enter the next thing I am going to talk about (after runtime, of course). 
+
+As a reminder, we are looking for something in the neighborhood of a running time of O(k log² n). We will start with a k=1 (which is probably incredibly inaccurate, but whatever): 
+```
+random number range → maximum time (ns), average time (ns)
+10000, 100000 → 1716 ns, 69 ns 
+100000, 1000000 → 1321 ns, 94 ns 
+1000000, 10000000 → 1616 ns, 94 ns 
+10000000, 100000000 → 1452 ns, 103 ns 
+100000000, 1000000000 → 1675 ns, 113 ns
+```
+
+That is called... Noise. Let's try some much larger numbers: 
+```
+random number range → maximum time (ns), average time (ns)
+100000000, 1000000000 → 1858.4 ns, 116.6 ns 
+1000000000, 10000000000 → 1598.2 ns, 123.55 ns 
+10000000000, 100000000000 → 1478.1 ns, 137.65 ns 
+100000000000, 1000000000000 → 1513 ns, 144.85 ns 
+1000000000000, 10000000000000 → 1464.2 ns, 155.11 ns
+```
+
+So the maximum has the same noise, but looking at the averages (and honestly looking back at the averages from the first ranges) appear to show some pattern? Let's try a few more k values to see what results we get, and then we can graph the performance to confirm that this follows a log² n performance graph. 
+
+We can go with a k=10:
+```
+random number range → maximum time (ns), average time (ns)
+10000, 100000 → 3954.8 ns, 273.78 ns 
+100000, 1000000 → 3635.1 ns, 335.7 ns
+1000000, 10000000 → 4156.8 ns, 313.97 ns
+10000000, 100000000 → 3088.9 ns, 317.39 ns
+100000000, 1000000000 → 4334 ns, 332.44 ns 
+1000000000, 10000000000 → 2291 ns, 290 ns 
+10000000000, 100000000000 → 2417.5 ns, 285.61 ns
+100000000000, 1000000000000 → 2541.7 ns, 293.35 ns
+1000000000000, 10000000000000 → 3266.5 ns, 305.14 ns 
+```
+
+And trying k=100: 
+```
+random number range → maximum time (ns), average time (ns)
+10000, 100000 → 18441.9 ns, 2300.11 ns
+100000, 1000000 → 20568.8 ns, 2698.52 ns 
+1000000, 10000000 → 19824.1 ns, 2302.76 ns
+10000000, 100000000 → 19384.5 ns, 2192.06 ns 
+100000000, 1000000000 → 24232.5 ns, 2080.98 ns
+1000000000, 10000000000 → 20892.5 ns, 1521.86 ns 
+10000000000, 100000000000 → 6407.7 ns, 1393.16 ns
+100000000000, 1000000000000 → 10337 ns, 1443.93 ns 
+1000000000000, 10000000000000 → 6348.85 ns, 1441.6 ns
+```
+
+These are really weird results. For the k=10, I essentially found stagnant time whereas for k=100 I found decreasing time? This seems very odd. My only guess as to why I am seeing this is that the benchmarking tool I am using has a soft cap on time spent benchmarking. This means that for larger numbers, runs take longer, and therefore fewer things are tested. This means that there is a much higher likelihood that I don't run into some super computationally complex number. So, let me try changing that and run these tests again. 
+
+And doing that changed nothing about the oddly consistent k=10 times... So the only piece of evidence I have that this has a k in O(k log² n) is that going from k=1 to k=100 has essentially a 100x increase about. However, this really isn't clear at all and is inconsistent at best. The pattern which is fairly clear is the log² n part in the k=1 data: 
+
+![GRAPH2](assets/runtimeGraphFermat.png)
+
+Appologies for the different graphing software. Either way, you can see the data for k=1 runtime in red and a scaled log² x graph in orange (a scaling factor of 1/5). You can see that these plots mostly agree, suggesting that my algorithm, at least for k=1, is running in some version of O(log² n) time. I am not entirely sure what causes the differences in larger values of k, however. 
