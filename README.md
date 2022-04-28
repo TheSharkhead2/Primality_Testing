@@ -421,3 +421,23 @@ And doing that changed nothing about the oddly consistent k=10 times... So the o
 ![GRAPH2](assets/runtimeGraphFermat.png)
 
 Appologies for the different graphing software. Either way, you can see the data for k=1 runtime in red and a scaled log² x graph in orange (a scaling factor of 1/5). You can see that these plots mostly agree, suggesting that my algorithm, at least for k=1, is running in some version of O(log² n) time. I am not entirely sure what causes the differences in larger values of k, however. 
+
+## Miller-Rabin Primality Testing
+
+For this section I am going to be using information I found [here](https://crypto.stanford.edu/pbc/notes/numbertheory/millerrabin.html) and [here](https://en.wikipedia.org/wiki/Miller%E2%80%93Rabin_primality_test). Anyways, what is Miller-Rabin primality testing? Essentially, it has the aim of being as fast as [Fermat primality testing](#the-fermat-test) (or at least as fast as possible) without the same accuracy issues. In other words, if we take the math-y coolness that makes the Fermat primality test so fast, and expand on it slightly, can we make it just as fast, but with much higher accuracy? Of course, we still sacerfice some accuracy for speed, but to find really large primes, it helps to use a much faster method first and then double check with a perfectly accurate, but slower algorithm, once you find a possible prime (like [this one](#that-algorithm-i-found-on-wikipedia)). 
+
+We aim to improve the basic Fermat test: 
+```
+a⁽ⁿ⁻¹⁾ ≡ 1 (mod n)
+```
+
+With the fact that n is prime if and only if the only solutions of: 
+```
+x² ≡ 1 (mod n)
+```
+
+are x=±1. So, if n passes the fermat test, we also check if: 
+```
+a^(n-1)/2 = ±1
+```
+This still doesn't catch all Carmichael numbers (like 1729, the third Carmichael number), but we can iterate this. Halving the exponent over and over until we reach a number that is not 1. If that number is anything but -1, the number must be composite. 
