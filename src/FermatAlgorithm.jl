@@ -12,10 +12,10 @@ function modular_exp(base::Int, exponent::Int, modulus::Int)
     base = base % modulus # can adjust basis to equivalence 
     while exponent > 0 # loop until completed all exponents 
         if exponent % 2 == 1 # we binary shift the exponent each time so if it is odd, then that digit is 1, we ignore 0s 
-            result = (result * base) % modulus # multiply by base and can take mod because mod rules
+            result = oftype(modulus, widemul(result, base) % modulus) # multiply by base and can take mod because mod rules
         end # if
         exponent = exponent >> 1 # shift bit representation of exponent to right 
-        base = (base * base) % modulus # square base and can take mod
+        base = oftype(modulus, widemul(base, base) % modulus) # square base and can take mod
     end # while
 
     result
