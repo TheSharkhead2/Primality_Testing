@@ -8,7 +8,6 @@ function power2_factor(n::Int)
     d = (n-1) >>> r # find d. Shift r bits to the right, equivalent to dividing by 2ʳ
 
     (r, d)
-
 end # function power2_factor
 
 """

@@ -362,9 +362,7 @@ That isn't that many! According to this [source](https://primes.utm.edu/glossary
 
 Well after a little bit of Googling, it turns out I was not the [only person](https://math.stackexchange.com/questions/1406533/fermat-primality-test-gcd-condition-and-carmichael-numbers) to misunderstand Carmichael numbers. So yes, Carmichael numbers are quite likely to fail this primality test, but not definitively. However, it only fails when a (remember the theorem is for a prime number n, we have ```aⁿ⁻¹ = 1 (mod n)```) is coprime to n, so you can totally still find values for Carmichael numbers that demonstrate they aren't prime. But if I was able to do this without many numbers sampled, why are they even an issue? Well, it has to do with when you get to massive numbers. There could be very few prime factors of a 100-digit prime and therefore be really difficult to stumble across a number which demonstrates a Carmichael number that massive to actually not be a prime. So that was really interesting, and quite unexpected when looking at accuracy of this algorithm. 
 
-I tested a stupid large range of 1000000000000-1000000000000000, sampling 100000 numbers, and got an accuracy of 0.97069. Which is pretty good. Though 3% is also not amazing? Note that this was with a k=100. Testing with k=10000 it for some reason went down: 0.96874... Hmmm... Again, this makes sense though. Given that Carmichael numbers, as I said earlier, are just sometimes super hard to get the right a to show they aren't prime, it is probably really difficult to get enough numbers inorder to increase the accuracy. I especially think that these values for k are just completely useless on these massive numbers I am testing. Overall, this just demonstrates that we need a much better primality test, enter the next thing I am going to talk about (after runtime, of course). 
-
-As a reminder, we are looking for something in the neighborhood of a running time of O(k log² n). We will start with a k=1 (which is probably incredibly inaccurate, but whatever): 
+Now onto running time. As a reminder, we are looking for something in the neighborhood of a running time of O(k log² n). We will start with a k=1 (which is probably incredibly inaccurate, but whatever): 
 ```
 random number range → maximum time (ns), average time (ns)
 10000, 100000 → 1716 ns, 69 ns 
@@ -418,7 +416,7 @@ These are really weird results. For the k=10, I essentially found stagnant time 
 
 And doing that changed nothing about the oddly consistent k=10 times... So the only piece of evidence I have that this has a k in O(k log² n) is that going from k=1 to k=100 has essentially a 100x increase about. However, this really isn't clear at all and is inconsistent at best. The pattern which is fairly clear is the log² n part in the k=1 data: 
 
-![GRAPH2](assets/runtimeGraphFermat.png)
+![GRAPH2](assets/FermatRuntimeGraph.png)
 
 Appologies for the different graphing software. Either way, you can see the data for k=1 runtime in red and a scaled log² x graph in orange (a scaling factor of 1/5). You can see that these plots mostly agree, suggesting that my algorithm, at least for k=1, is running in some version of O(log² n) time. I am not entirely sure what causes the differences in larger values of k, however. 
 
@@ -433,7 +431,7 @@ a⁽ⁿ⁻¹⁾ ≡ 1 (mod n)
 
 With the fact that n is prime if and only if the only solutions of: 
 ```
-x² ≡ 1 (mod n)
+x² = 1 (mod n)
 ```
 
 are x=±1. So, if n passes the fermat test, we also check if: 
@@ -441,3 +439,138 @@ are x=±1. So, if n passes the fermat test, we also check if:
 a^(n-1)/2 = ±1
 ```
 This still doesn't catch all Carmichael numbers (like 1729, the third Carmichael number), but we can iterate this. Halving the exponent over and over until we reach a number that is not 1. If that number is anything but -1, the number must be composite. 
+
+Now on to implementing this, and actually, it was a bit of a ride. Ignoring the integer overflows present everywhere with larger numbers (this also involved fixing my modular exponentiation algorithm slightly), the implementation itself (on Wikipedia and [Rosseta Code](https://rosettacode.org/wiki/Miller%E2%80%93Rabin_primality_test), which I used for reference) was just confusing and seemed to make pretty large jumps from the above description. I will try my best; however, to explain the algorithm and the implementation I ended up with. 
+
+Like with every (well almost every?) primality test so far, we are going to start with checking for 1) a negative number (which we will promptly ignore) 2) 2 or 3 as they are easy primes and 3) an even number... because, well, that won't be prime: 
+```julia
+function miller_rabin_prime(n::Int, k::Int)
+    if n ≤ 3 
+        return n > 1 
+    elseif n % 2 == 0 
+        return false 
+    end # if
+end # function miller_rabin_prime
+```
+
+We have seen this before 100 times so whatever. Anyways, onto the *actual* algorithm. The root of this algorithm follows from the two mathematical identities outlined above. To make use of them, we want to keep havling the exponent of the fermat test: 
+```
+a^(n-1) → a^((n-1)/2) → a^((n-1)/2²) → ...
+```
+If n is prime, the first item in the sequence is 1 mod n (the fermat test) and all proceeding numbers are 1 and if they aren't 1, they are -1. So effectively, all we need to do in the algorithm is go down this list until we find a number other than 1, if it isn't -1 than the number isn't prime. 
+
+However, there is an issue with continually halving an exponent. To illustrate, say we have: 
+```
+7³ = 343
+```
+So 7³ is an integer, and that is okay (we want to avoid floats for rounding errors and whatnot), however what about when we halve the exponent: 
+```
+7^(3/2) = 18.52...
+```
+We no longer have a nice integer. And this means we have a high chance of getting something like 1.0000000000000002 and then the computer saying "nah, not 1, definitely not prime". Great. 
+
+So instead of going "down the tree," we instead need to go up it. What does this mean? Well it starts with finding r and d in the following: 
+```
+n-1 = 2ʳ ⋅ d
+```
+Or in other words, we want to find the number r which is the number of times we can divide n-1 (the exponent) by to get the smallest integer value d. And once we have that, we can just start at d and keep squaring the number until we reach the top of the tree! 
+
+But new issue: first off how are we going to do this factoring, but more importantly, our criteria was to keep going down the tree until we find a number other than 1, if it is negative 1, it is likely prime, otherwise it isn't. So how does this condition flip around? Well, the one this I didn't understand until looking at this for a while is that the condition that validates this halving exponents says nothing about the square roots of -1. So, while it does say that the only solutions to the following are 1 or -1: 
+```
+x² = 1 (mod n)
+```
+It says nothing about the solutions to: 
+```
+x² = -1 (mod n)
+```
+
+So... once we reach -1 in the sequence, all bets are off... you could find any number! So really, what we are looking for when we are going up this "tree" is either: 1) we start at 1, and in this case we will just be squaring 1 so it will always be 1, pretty likely prime, or 2) we don't start at 1 and we keep squaring until we reach -1, meaning that going the other way the first number we encountered that wasn't 1 was -1. We know that squaring one more time will give us 1 (and not some other number) as it is pretty certain that -1 ⋅ -1 = 1 (which is also true in modular arithmetic because mod rules are nice). 
+
+Okay cool, we have a plan of attack, but we just need to start by doing that weird factoring thing. Total credit to the people who wrote the Julia primes library because I never would have thought of this (though I defend myself because I didn't even know these were functions), but we can write the code for this like so: 
+```julia
+function power2_factor(n::Int)
+    r = trailing_zeros(n-1)
+
+    d = (n-1) >>> r 
+
+    (r, d)
+end # function power2_factor
+```
+Okay, so what is happening here? Well for starters, notice that we are working with n-1. Again, the exponent is n-1 so we want to be halving that. After that, the first thing we do is say that:
+```julia
+r = trailing_zeros(n-1)
+```
+What is ```trailing_zeros()```? Well Julia describes it like so: 
+```
+Number of zeros trailing the binary representation of x.
+```
+Which is pretty self explainatory, but to give an example, say we have the number 42, it has the binary representation of: 101010. If we were to run: ```trailing_zeros(42)``` we would get 1 because there is 1 zero to the right of the binary representation. If we were instead looking at 32, it has the binary representation: 100000, so running ```trailing_zeros(32)``` we get 5. 
+
+Okay cool, but how does this get us r? How does this get us the amount of times we have halve n-1? Well, notice how with binary numbers, say 1010100 = 84, dividing by 2 is the same thing as shifting to the right by one: 
+```
+1010100 → 101010 → 10101
+84 → 42 → 21
+```
+In other words, the number of zeros to the right represents the number of times we can divide by 2 until we reach an odd number, meaning halving again we would get a non-integer. From here, we just need to find the number that would result by dividing n-1 by 2ʳ, which as shifting to the right is like dividing by 2, will just be shifting r times to the right, or in code: 
+```julia
+d = (n-1) >>> r
+```
+
+Cool! The next thing we do is just sample k numbers in the range [2, n-2] as much like with Fermat testing, we compute this equality k times. Doing this sampling and getting r and d, we expand our code slightly: 
+```julia
+function miller_rabin_prime(n::Int, k::Int)
+    if n ≤ 3 
+        return n > 1 
+    elseif n % 2 == 0 
+        return false 
+    end # if
+
+    (r, d) = power2_factor(n) 
+
+    sampledNumbers = rand(2:n-2, k) 
+end # function miller_rabin_prime
+```
+And now that all that preparation is out of the way, we can begin our loops! Again, we are looping k times with k different numbers, so we just have to set that loop up, and then in each loop we are going to be starting at the bottom of this halving exponent loop. This means we are starting with: aᵈ (mod n). If this results in 1, well we are going to keep squaring this (because remember this is the bottom of halving exponents) and 1² is always just 1, so if we get 1, that means it was always 1, and this is probably prime. If it isn't 1, well then we want to start squaring until we reach -1 as this should be the first number we find that isn't 1 when going the other way. If we never reach -1, then this isn't a prime number and if we do, then we continue iterations. In code this looks like so (and completes our algorithm): 
+
+```julia
+function miller_rabin_prime(n::Int, k::Int)
+    if n ≤ 3 
+        return n > 1 
+    elseif n % 2 == 0 
+        return false 
+    end # if
+
+    (r, d) = power2_factor(n) 
+
+    sampledNumbers = rand(2:n-2, k) 
+    for a ∈ sampledNumbers 
+        x = modular_exp(a, d, n) 
+        if x == 1  
+            continue
+        end # if
+        t = r 
+        while x ≠ n-1 
+            t -= 1
+            t <= 0 && return false 
+            x = oftype(n, widemul(x,x) % n) 
+            x == 1 && return false 
+        end # while
+    end # for 
+    return true 
+end # function miller_rabin_prime
+```
+
+A few things of note in the code. We have a while loop that goes until we reach -1, or n-1 in modular arithmetic. This also means that our bases are covered if aᵈ = -1 which was a case we needed to address (this should be in favor of probably prime). We then loop through all the values of r (well r-1 because the 0th exponent is kinda not important). The code:
+```julia
+t <= 0 && return false 
+```
+Will return not prime if we reach the end of the while loop at t=1, meaning we have looped through all r values. We also have this interesting piece of code: 
+```julia 
+x = oftype(n, widemul(x,x) % n) 
+```
+Which is really just x² mod n, but using multiplication and insuring that we don't have integer overflow errors. This was an issue that affected my Fermat testing algorithm as well, just I didn't realize the issues at larger numbers (we basically just make a larger type for x*x and then convert back after computing mod n). Finally, we have the following code: 
+```julia
+x == 1 && return false
+```
+
+Which seems really weird at first, wasn't 1 allowed? Well, if we find 1 before -1, which the loop will terminate if we ever do find -1, then that means that a solution to x² = 1 (mod n) is not, in fact, ±1. Which that means our equality broke! (Also remember, if we started at the bottom of the loop with 1 (which is okay), the loop would have already been skipped so that won't falsely return false). Okay cool! Hopefully that all makes sense. If all these checks are okay (no problems are found), we end with returning true, meaning probably prime. 
