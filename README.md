@@ -574,3 +574,15 @@ x == 1 && return false
 ```
 
 Which seems really weird at first, wasn't 1 allowed? Well, if we find 1 before -1, which the loop will terminate if we ever do find -1, then that means that a solution to x² = 1 (mod n) is not, in fact, ±1. Which that means our equality broke! (Also remember, if we started at the bottom of the loop with 1 (which is okay), the loop would have already been skipped so that won't falsely return false). Okay cool! Hopefully that all makes sense. If all these checks are okay (no problems are found), we end with returning true, meaning probably prime. 
+
+Testing on the range 1000000000-100000000000000, I found 100% accuracy with 100000 samples. So this is pretty accurate; however, the numbers I found for this and for the Fermat test are the same with these smaller numbers. This is to be expected as really the benefits of this improved primality test shine in the "for sure" nature of the true result that is really necessary at much larger primes where there are much more false positives. 
+
+In terms of running time, [Wikipedia](https://en.wikipedia.org/wiki/Miller%E2%80%93Rabin_primality_test#Complexity) lists this at O(k log³ n) with FFT-based multiplication triming this down to O(k log n), though I don't think that is at all related to my implementation. 
+
+Looking at the code, of course we are operating in a look of length k, so we need that k scalar. Working off the O(log e) running time of fast exponentiation and the fact that the inner loop is in O(log n) time, I would say the running time of this algorithm is O(2k log n)... Which doesn't agree with Wikipedia. Let's test my actual implementation to see what we find: 
+![k=1](assets/millerRabinPerformancek1.png)
+
+Here, with k=1, we see the graph following, fairly roughly, the log³ n graph. We can try with k=10: 
+![k=10](assets/millerRabinPerformancek10.png)
+
+With an increase to k=10, so 10x, we see about a 2x magnitude jump in running time. I sorta ran out of patience scaling this properly with the log graph here being about 1.2x larger in scale. 
