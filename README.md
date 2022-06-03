@@ -580,9 +580,21 @@ Testing on the range 1000000000-100000000000000, I found 100% accuracy with 1000
 In terms of running time, [Wikipedia](https://en.wikipedia.org/wiki/Miller%E2%80%93Rabin_primality_test#Complexity) lists this at O(k log³ n) with FFT-based multiplication triming this down to O(k log n), though I don't think that is at all related to my implementation. 
 
 Looking at the code, of course we are operating in a look of length k, so we need that k scalar. Working off the O(log e) running time of fast exponentiation and the fact that the inner loop is in O(log n) time, I would say the running time of this algorithm is O(2k log n)... Which doesn't agree with Wikipedia. Let's test my actual implementation to see what we find: 
+
 ![k=1](assets/millerRabinPerformancek1.png)
 
 Here, with k=1, we see the graph following, fairly roughly, the log³ n graph. We can try with k=10: 
+
 ![k=10](assets/millerRabinPerformancek10.png)
 
 With an increase to k=10, so 10x, we see about a 2x magnitude jump in running time. I sorta ran out of patience scaling this properly with the log graph here being about 1.2x larger in scale. 
+
+If we increase k to 100, we get the following runtime graph: 
+
+![k=100](assets/millerRabinPerformancek100.png)
+
+Here we see about a 5x increase which isn't quite the linear 10x we are expecting. Trying k=1000 and hoping it completes in a reasonable amount of time yeilds the following: 
+
+![k=1000](assets/millerRabinPerformancek1000.png)
+
+This time we appear to actually see a 10x increase. Though the data does appear to be much messier. As this is starting to take a while I think I am going to stop here and call it "good enough." But generally, it seems that we could make the conclusion that the algorithm is linear with k. 

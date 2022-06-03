@@ -4,7 +4,7 @@ using .PrimalityTesting
 
 using BenchmarkTools, Plots, PlotThemes
 
-k=10
+k=1000
 
 BenchmarkTools.DEFAULT_PARAMETERS.seconds = 20
 BenchmarkTools.DEFAULT_PARAMETERS.samples = 10000
@@ -81,6 +81,6 @@ theme(:dark)
 X = [entry[1] for entry ∈ data] 
 Y = [entry[2] for entry ∈ data]
 
-scatter(X, Y, label="Miller-Rabin k = 10")
-plot!(x->(1/3.2*log(x))^3, label="Log^3(x)")
+scatter(X, Y, label="Miller-Rabin k = 1000")
+plot!(x->(1*log(x))^3, label="Log^3(x)")
 savefig("millerRabinPerformance.png")
